@@ -1,4 +1,4 @@
-#include <Wire.h>
+ #include <Wire.h>
 #include <PWM.h>
 #include <Servo.h>
 
@@ -12,6 +12,9 @@
 
 
 static uint8_t nunchuck_buf[6];   // array to store nunchuck data,
+
+//static double L1 = ???  //define the length of L1 here
+//static double L2 = ???  //define the length of L2 here
 
 // Uses port C (analog in) pins as power & ground for Nunchuck
 static void nunchuck_setpowerpins()
@@ -37,6 +40,26 @@ static void nunchuck_init(){
     Wire.send((uint8_t)0x00);// sends sent a zero.
   #endif
   Wire.endTransmission();// stop transmitting
+}
+
+// Inverse kinematic function 
+// Input: Coordinate: x,y,z; Length of links: L1, L2; Reference parameter of M1, M2 and M3
+// This function will update the angle of three joints to the passed in M1, M2 and M3 parameters.
+
+static void IK(int x, int y, int z, double L1, double L2, double & M1, double & M2, double & M3 )
+{
+  M1 = atan((x/y)*180/3.14); //M1 angle updated
+
+  //Temp value during calculation, detail please referece https://drive.google.com/file/d/1QWOK2UDI9y4r2QihcjxmzVdvYBgfkfEr/view?usp=sharing
+  double c1 = sqrt( pow(x,2) + pow(y,2) );
+  double b = sqrt( pow(z,2) + pow(c1,2) );
+  double P = L1 + L2 + b;
+  double x = 2 * sqrt(P*(P-L1)*(P-L2)*(P-b))/b;
+  //End of temp calculation
+  
+  M2 = atan((z/c1)*180/3.14) + asin((x/L1)*180/3.14); //M2 angle updated
+  M3 = 180 - acos((x/L1)*180/3.14) - acos((x/L2)*180/3.14); //M3 angle updated
+
 }
 
 // Send a request for data to the nunchuck
