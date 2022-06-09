@@ -190,6 +190,25 @@ static int nunchuck_accelz(){
 ///////////// Global Variables Declaration /////////////////
 const int state_change_threshold = 5;
 const int homing_threshold = 30;
+const int joystick_disp_threshold_l = 50;
+const int joystick_disp_threshold_h = 200;
+
+// these motor_angle_* variables give software joint limit in each joint. In order to have consistent joint limits 
+// the limit values used in comparison with motor_pwm_* should be function of m*_speed and these motor*_angle_* variables
+const int motor1_angle_low = 42;
+const int motor2_angle_low = 32;
+const int motor3_angle_low = 32;
+const int motor4_angle_low = 8; 
+const int motor1_angle_high = 165;
+const int motor2_angle_high = 165;
+const int motor3_angle_high = 165;
+const int motor4_angle_high = 31; 
+
+const int m1_speed = 2;
+const int m2_speed = 2;
+const int m3_speed = 2;
+const int m4_speed = 4;
+
 int loop_cnt = 0;
 byte joyx, joyy, zbut, cbut;
 byte accx, accy, accz; // we dont use accelerations but just keeping it
@@ -372,6 +391,8 @@ void loop() {
     // check C and Z status
     zbut = nunchuck_zbutton();  //  0 - 1
     cbut = nunchuck_cbutton();  //  0 - 1
+
+    // check Z button
     if (zbut){
       z_counter++; // counter resets when either state changes or HOMING is called
       if (z_counter > homing_threshold){
@@ -407,6 +428,7 @@ void loop() {
       }
     }
 
+    // check C button
     if (cbut){
       c_counter++; // counter resets when either state changes or  is called
       if (c_counter > homing_threshold){
@@ -450,84 +472,66 @@ void loop() {
     // int motor4angle = map(motor_pwm_4, 32, 195, 0, 180);
     
     _print(mappedx, mappedy, plotter); // third parameter controls the monitor(false)/plotter(true) 
-    if (mappedx < 50){ // we consider joystic's x value first
-      //Serial.print("\tleft\n");
-      if (state_z == false){ // control motor1
-        if (motor_pwm_1>42){
-          // --motor_pwm_1;
-          motor_pwm_1 -= 2;
-          pwmWrite(motorPIN1, motor_pwm_1);
-        }
-      }
-      else{ // control motor4
-        if (motor_pwm_4>8){
-          motor_pwm_4 -= 4;
-          // motor4angle = map(motor_pwm_4, 32, 195, 0, 180);
-          pwmWrite(motorPIN4, motor_pwm_4);
-          // pwmWrite(motorPIN4, motor_pwm_4);
-        }
-      }
-    }
-    else if (mappedx > 200){
-      //Serial.print("\tright\n");
-      if (state_z == false){ // control motor2
-        if (motor_pwm_1<165){
-          // ++motor_pwm_1; 
-          motor_pwm_1 += 2;
-          // Serial.print(motor_pwm_1);
-          pwmWrite(motorPIN1, motor_pwm_1);
-        }
-      }
-      else{
-        if (motor_pwm_4<31){
-          motor_pwm_4 += 4;
-          // Serial.print(motor_pwm_4);
-          // motor4angle = map(motor_pwm_4, 32, 195, 0, 180);
-          pwmWrite(motorPIN4, motor_pwm_4);
-          // pwmWrite(motorPIN4, motor_pwm_4);
-        }
-      }
-    }
-    else{ // now we consider y values
-      //Serial.print("--------------- X DEAD, CONTROL Y ------------\n");
-      if (mappedy < 50){ // we consider joystic's x value first
-        //Serial.print("\nleft on motor 2 or 3\n");
-        if (state_c == false){ // control motor2   
-          //Serial.print("control motor 2\n");       
-          if (motor_pwm_2>32){
-            // --motor_pwm_2;
-            motor_pwm_2 -= 2;
-            //Serial.print("--------------- decrease motor_pwm_2 ------------\n");
-            pwmWrite(motorPIN2, motor_pwm_2);
+    
+    // deadzone checking and motor actuation
+    {
+      if (mappedx < joystick_disp_threshold_l){ // we consider joystic's x value first
+        if (state_z == false){ // control motor1
+          if (motor_pwm_1 > motor1_angle_low){
+            motor_pwm_1 -= m1_speed;
+            pwmWrite(motorPIN1, motor_pwm_1);
           }
         }
-        else{ // control motor3
-          if (motor_pwm_3>32){
-            // --motor_pwm_3;
-            motor_pwm_3 -= 2;
-            //Serial.print("--------------- decrease motor_pwm_3 ------------\n");
-            pwmWrite(motorPIN3, motor_pwm_3);
+        else{ // control motor4
+          if (motor_pwm_4 > motor4_angle_low){
+            motor_pwm_4 -= m4_speed;
+            // motor4angle = map(motor_pwm_4, 32, 195, 0, 180);
+            pwmWrite(motorPIN4, motor_pwm_4);
           }
         }
       }
-      else if (mappedy > 200){
-        //Serial.print("\tright\n");
-        if (state_c == false){ // control motor2
-          if (motor_pwm_2<165){
-            // ++motor_pwm_2;
-            motor_pwm_2 += 2; 
-            //Serial.print("--------------- increase motor_pwm_2 ------------\n");
-            // Serial.print(motor_pwm_2);
-            pwmWrite(motorPIN2, motor_pwm_2);
+      else if (mappedx > joystick_disp_threshold_h){
+        if (state_z == false){ // control motor2
+          if (motor_pwm_1 < motor1_angle_high){
+            motor_pwm_1 += m1_speed;
+            pwmWrite(motorPIN1, motor_pwm_1);
           }
         }
-        else{ // control motor3
-          if (motor_pwm_3<165){
-            // ++motor_pwm_3; 
-            motor_pwm_3 += 2;
-            //Serial.print("\n\n--------------- increase motor_pwm_3 ------------\n\n");
-            // Serial.print(motor_pwm_3);
-            pwmWrite(motorPIN3, motor_pwm_3);
+        else{
+          if (motor_pwm_4 < motor4_angle_high){
+            motor_pwm_4 += m4_speed;
+            // motor4angle = map(motor_pwm_4, 32, 195, 0, 180);
+            pwmWrite(motorPIN4, motor_pwm_4);
+          }
+        }
+      }
+      else{ // now we consider y values
+        if (mappedy < joystick_disp_threshold_l){ // we consider joystic's x value first
+          if (state_c == false){ // control motor2   
+            if (motor_pwm_2 > motor2_angle_low){
+              motor_pwm_2 -= m2_speed;
+              pwmWrite(motorPIN2, motor_pwm_2);
+            }
+          }
+          else{ // control motor3
+            if (motor_pwm_3 > motor3_angle_low){
+              motor_pwm_3 -= m3_speed;
+              pwmWrite(motorPIN3, motor_pwm_3);
+            }
+          }
+        }
+        else if (mappedy > joystick_disp_threshold_l){
+          if (state_c == false){ // control motor2
+            if (motor_pwm_2 < motor2_angle_high){
+              motor_pwm_2 += m2_speed; 
+              pwmWrite(motorPIN2, motor_pwm_2);
+            }
+          }
+          else{ // control motor3
+            if (motor_pwm_3 < motor3_angle_high){
+              motor_pwm_3 += m3_speed;
+              pwmWrite(motorPIN3, motor_pwm_3);
+            }
           }
         }
       }
