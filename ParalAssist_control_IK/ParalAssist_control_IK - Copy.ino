@@ -224,18 +224,6 @@ int motor_pwm_2 = 200; //
 int motor_pwm_3 = 120;
 int motor_pwm_4 = 7; // 81 for mid point
 
-int gripperX; // X coordinate of gripper
-int gripperY; // Y coordinate of gripper
-int gripperZ; // Z coordinate of gripper
-
-int gripperX_low = 0; // X coordinate min
-int gripperY_low = 0; // Y coordinate min
-int gripperZ_low = 0; // Z coordinate min
-
-int gripperX_high = 0; // X coordinate max
-int gripperY_high = 0; // Y coordinate max
-int gripperZ_high = 0; // Z coordinate max
-
 bool plotter = true;
 
 Servo gripper;
@@ -391,10 +379,6 @@ void setup() {
   do{
     pins_are_set = set_pin_frequency();
   } while (pins_are_set != true);
-
-  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  //Move M1,2,3 to preset position and update xyz coordinate. TBD
-  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    
 }
 
@@ -408,39 +392,76 @@ void loop() {
     zbut = nunchuck_zbutton();  //  0 - 1
     cbut = nunchuck_cbutton();  //  0 - 1
 
-    // check Z button 
-    // Z button now is only used for homing
+    // check Z button
     if (zbut){
       z_counter++; // counter resets when either state changes or HOMING is called
       if (z_counter > homing_threshold){
+        // turn on led to indicate possible z state change
         if (plotter== false){
-          Serial.print("------------- homing ---------------\n");
+          Serial.print("------------- z homing ready ---------------\n");
         }
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        //Move M1,2,3 to preset position and update xyz coordinate. TBD
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        z_counter = 0;
+      }
+      else if (z_counter > state_change_threshold){
+        // turn on led to indicate possible homing
+        if (plotter == false){
+          Serial.print("------------- Z state toggle ready ---------------\n");
+        }
       }
     }
-    else{ // bouncing button
-      z_counter = 0; // reset counter 
+    else{
+      if((z_counter > homing_threshold) && (c_counter > homing_threshold)){ // homing
+        if (plotter == false){
+          Serial.print("HOMING\n");
+        }
+        z_counter = 0;
+        c_counter = 0;
+      }
+      else if (z_counter > state_change_threshold){ // state change
+        if (plotter == false){
+          Serial.print("------------- toggle z_state ---------------\n");
+        }
+        state_z = !state_z;
+        z_counter = 0;
+      }
+      else{ // bouncing button
+        z_counter = 0; // reset counter 
+      }
     }
 
-    // check C button 
-    // C button false -> x and y of joy controls x and y of end factor
-    // C button true -> x and y of joy controls gripper open,close and z of end factor
+    // check C button
     if (cbut){
       c_counter++; // counter resets when either state changes or  is called
-      if (c_counter > state_change_threshold){
+      if (c_counter > homing_threshold){
+        // turn on led to indicate possible c state change
+        if (plotter == false){
+          Serial.print("------------- c homing ready ---------------\n");
+        }
+      }
+      else if (c_counter > state_change_threshold){
+        // turn on led to indicate possible homing
+        if (plotter == false){
+          Serial.print("------------- c_state toggle ready---------------\n");
+        }
+      }
+    }
+    else{
+      if((c_counter > homing_threshold) && (z_counter > homing_threshold)){ // homing
+        if (plotter ==false) {
+          Serial.print("HOMING\n");      
+        }
+        c_counter = 0;
+        z_counter = 0;
+      }
+      else if (c_counter > state_change_threshold){ // state change
         if (plotter == false){
           Serial.print("------------- toggle c_state ---------------\n");
         }
         state_c = !state_c;
         c_counter = 0;
       }
-    }
-    else{
-      c_counter = 0; // reset counter 
+      else{ // bouncing button
+        c_counter = 0; // reset counter 
+      }
     }
 
     // check joystick value and control motor
@@ -455,10 +476,10 @@ void loop() {
     // deadzone checking and motor actuation
     {
       if (mappedx < joystick_disp_threshold_l){ // we consider joystic's x value first
-        if (state_c == false){ // control motor1
-          if (gripperX > gripperX_low){
-            gripperX -= gripperX;
-            //pwmWrite(motorPIN1, motor_pwm_1);
+        if (state_z == false){ // control motor1
+          if (motor_pwm_1 > motor1_angle_low){
+            motor_pwm_1 -= m1_speed;
+            pwmWrite(motorPIN1, motor_pwm_1);
           }
         }
         else{ // control motor4
@@ -470,10 +491,10 @@ void loop() {
         }
       }
       else if (mappedx > joystick_disp_threshold_h){
-        if (state_c == false){ // control motor2
-          if (gripperX < gripperX_high){
-            gripperX += gripperX;
-            //pwmWrite(motorPIN1, motor_pwm_1);
+        if (state_z == false){ // control motor2
+          if (motor_pwm_1 < motor1_angle_high){
+            motor_pwm_1 += m1_speed;
+            pwmWrite(motorPIN1, motor_pwm_1);
           }
         }
         else{
@@ -487,37 +508,34 @@ void loop() {
       else{ // now we consider y values
         if (mappedy < joystick_disp_threshold_l){ // we consider joystic's x value first
           if (state_c == false){ // control motor2   
-            if (gripperY > gripperY_low){
-              gripperY -= gripperY;
-              //pwmWrite(motorPIN2, motor_pwm_2);
+            if (motor_pwm_2 > motor2_angle_low){
+              motor_pwm_2 -= m2_speed;
+              pwmWrite(motorPIN2, motor_pwm_2);
             }
           }
           else{ // control motor3
-            if (gripperZ > gripperZ_low){
-              gripperZ -= gripperZ;
-              //pwmWrite(motorPIN3, motor_pwm_3);
+            if (motor_pwm_3 > motor3_angle_low){
+              motor_pwm_3 -= m3_speed;
+              pwmWrite(motorPIN3, motor_pwm_3);
             }
           }
         }
         else if (mappedy > joystick_disp_threshold_l){
           if (state_c == false){ // control motor2
-            if (gripperY < gripperY_high){
-              gripperY += gripperY; 
-              //pwmWrite(motorPIN2, motor_pwm_2);
+            if (motor_pwm_2 < motor2_angle_high){
+              motor_pwm_2 += m2_speed; 
+              pwmWrite(motorPIN2, motor_pwm_2);
             }
           }
           else{ // control motor3
-            if (gripperZ < gripperZ_high) {
-              gripperZ += gripperZ;
-              //pwmWrite(motorPIN3, motor_pwm_3);
+            if (motor_pwm_3 < motor3_angle_high){
+              motor_pwm_3 += m3_speed;
+              pwmWrite(motorPIN3, motor_pwm_3);
             }
           }
         }
       }
     }
-    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    //send coordinates to IK function and use pwmWrite function to update angles.
-    //TBD
   }
   loop_cnt++;
   // delay(1);
